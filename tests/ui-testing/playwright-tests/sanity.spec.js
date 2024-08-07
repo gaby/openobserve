@@ -10,19 +10,47 @@ const dashboardName = `AutomatedDashboard${Date.now()}`;
 
 async function login(page) {
   await page.goto(process.env["ZO_BASE_URL"]);
-  // await page.getByText("Login as internal user").click();
+  // await page.getByText('Login as internal user').click();
+  console.log("ZO_BASE_URL", process.env["ZO_BASE_URL"]);
   await page.waitForTimeout(1000);
   await page
     .locator('[data-cy="login-user-id"]')
     .fill(process.env["ZO_ROOT_USER_EMAIL"]);
   //Enter Password
-  await page.locator("label").filter({ hasText: "Password *" }).click();
   await page
     .locator('[data-cy="login-password"]')
     .fill(process.env["ZO_ROOT_USER_PASSWORD"]);
   await page.locator('[data-cy="login-sign-in"]').click();
-  //     await page.waitForTimeout(4000);
-  // await page.goto(process.env["ZO_BASE_URL"]);
+  await page.waitForTimeout(4000);
+  await page.goto(process.env["ZO_BASE_URL"]);
+}
+
+async function ingestion(page) {
+  const orgId = process.env["ORGNAME"];
+  const streamName = "e2e_automate";
+  const basicAuthCredentials = Buffer.from(
+    `${process.env["ZO_ROOT_USER_EMAIL"]}:${process.env["ZO_ROOT_USER_PASSWORD"]}`
+  ).toString('base64');
+
+  const headers = {
+    "Authorization": `Basic ${basicAuthCredentials}`,
+    "Content-Type": "application/json",
+  };
+  const response = await page.evaluate(async ({ url, headers, orgId, streamName, logsdata }) => {
+    const fetchResponse = await fetch(`${url}/api/${orgId}/${streamName}/_json`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(logsdata)
+    });
+    return await fetchResponse.json();
+  }, {
+    url: process.env.INGESTION_URL,
+    headers: headers,
+    orgId: orgId,
+    streamName: streamName,
+    logsdata: logsdata
+  });
+  console.log(response);
 }
 
 const selectStreamAndStreamTypeForLogs = async (page, stream) => {
@@ -55,54 +83,12 @@ test.describe("Sanity testcases", () => {
     await expect.poll(async () => (await search).status()).toBe(200);
     // await search.hits.FIXME_should("be.an", "array");
   }
-  // tebefore(async function () {
-  //   // logData("log");
-  //   // const data = page;
-  //   // logData = data;
 
-  //   console.log("--logData--", logData);
-  // });
   test.beforeEach(async ({ page }) => {
     await login(page);
-    await page.waitForTimeout(5000);
-
-    // ("ingests logs via API", () => {
-    const orgId = process.env["ORGNAME"];
-    const streamName = "e2e_automate";
-    const basicAuthCredentials = Buffer.from(
-      `${process.env["ZO_ROOT_USER_EMAIL"]}:${process.env["ZO_ROOT_USER_PASSWORD"]}`
-    ).toString("base64");
-
-    const headers = {
-      Authorization: `Basic ${basicAuthCredentials}`,
-      "Content-Type": "application/json",
-    };
-
-    // const logsdata = {}; // Fill this with your actual data
-
-    // Making a POST request using fetch API
-    const response = await page.evaluate(
-      async ({ url, headers, orgId, streamName, logsdata }) => {
-        const fetchResponse = await fetch(
-          `${url}/api/${orgId}/${streamName}/_json`,
-          {
-            method: "POST",
-            headers: headers,
-            body: JSON.stringify(logsdata),
-          }
-        );
-        return await fetchResponse.json();
-      },
-      {
-        url: process.env.INGESTION_URL,
-        headers: headers,
-        orgId: orgId,
-        streamName: streamName,
-        logsdata: logsdata,
-      }
-    );
-
-    console.log(response);
+    await page.waitForTimeout(1000)
+    await ingestion(page);
+    await page.waitForTimeout(2000)
 
     await page.goto(
       `${logData.logsUrl}?org_identifier=${process.env["ORGNAME"]}`
@@ -110,7 +96,6 @@ test.describe("Sanity testcases", () => {
     const allsearch = page.waitForResponse("**/api/default/_search**");
     await selectStreamAndStreamTypeForLogs(page, logData.Stream);
     await applyQueryButton(page);
-
     // const streams = page.waitForResponse("**/api/default/streams**");
   });
 
@@ -158,9 +143,9 @@ test.describe("Sanity testcases", () => {
   });
 
   test("should display result text and pagination", async ({ page }) => {
-    await page.getByText("Showing 1 to 250").click();
+    await page.getByText("Showing 1 to 100").click();
     await page
-      .getByText("fast_rewind12345fast_forward250arrow_drop_down")
+      .getByText("fast_rewind12345fast_forward100arrow_drop_down")
       .click();
   });
 
@@ -266,7 +251,7 @@ test.describe("Sanity testcases", () => {
     await page.locator('[data-test="logs-search-bar-refresh-btn"]').click();
     await page.waitForTimeout(2000);
     await page
-      .getByText("fast_rewind12345fast_forward250arrow_drop_down")
+      .getByText("fast_rewind12345fast_forward100arrow_drop_down")
       .click();
   });
 
@@ -570,7 +555,7 @@ test.describe("Sanity testcases", () => {
     await page.locator('[data-test="log-table-column-0-source"]').click();
     await page.locator('[data-test="close-dialog"]').click();
     await page
-      .getByText("fast_rewind12345fast_forward250arrow_drop_down")
+      .getByText("fast_rewind12345fast_forward100arrow_drop_down")
       .click();
   });
 
@@ -594,7 +579,7 @@ test.describe("Sanity testcases", () => {
 
   test("should display pagination for schema", async ({ page }) => {
     await page
-      .getByText("fast_rewind12345fast_forward250arrow_drop_down")
+      .getByText("fast_rewind12345fast_forward100arrow_drop_down")
       .click();
     await page.getByText("fast_rewind1/2fast_forward").click();
     await page
@@ -617,7 +602,7 @@ test.describe("Sanity testcases", () => {
     await page.locator('[data-test="log-table-column-0-source"]').click();
     await page.locator('[data-test="close-dialog"]').click();
     await page
-      .getByText("fast_rewind12345fast_forward250arrow_drop_down")
+      .getByText("fast_rewind12345fast_forward100arrow_drop_down")
       .click();
   });
 
@@ -633,7 +618,7 @@ test.describe("Sanity testcases", () => {
     await page.locator('[data-test="log-table-column-1-\\@timestamp"]').click();
     await page.locator('[data-test="close-dialog"]').click();
     await page
-      .getByText("fast_rewind12345fast_forward250arrow_drop_down")
+      .getByText("fast_rewind12345fast_forward100arrow_drop_down")
       .click();
   });
 
@@ -851,8 +836,8 @@ test.describe("Sanity testcases", () => {
     await page
       .locator('[data-test="index-dropdown-stream"]')
       .fill("e2e_tabledashboard");
-      await page.waitForTimeout(4000);
-    await page.getByRole("option", { name: "e2e_tabledashboard" }).click({force: true});
+    await page.waitForTimeout(4000);
+    await page.getByRole("option", { name: "e2e_tabledashboard" }).click({ force: true });
     await page.waitForTimeout(6000);
 
     await page
@@ -878,8 +863,8 @@ test.describe("Sanity testcases", () => {
     await page
       .locator('[data-test="datetime-timezone-select"]')
       .fill("Asia/Calcutta");
-      await page.getByText("Asia/Calcutta", { exact: true }).click();
-      await page.waitForTimeout(200);
+    await page.getByText("Asia/Calcutta", { exact: true }).click();
+    await page.waitForTimeout(200);
 
     // NOTE: pass selected timezone
     const calcuttaTime = toZonedTime(new Date(timestamp), "Asia/Calcutta");

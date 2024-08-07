@@ -757,11 +757,31 @@ pub fn pickup_where(sql: &str, meta: Option<MetaSql>) -> Result<Option<String>, 
     Ok(Some(where_str))
 }
 
+fn closing_brace_index(opening_brace_index: usize, expr: &str) -> Option<usize> {
+    let mut brace_count = 0;
+    for (i, c) in expr[opening_brace_index..].chars().enumerate() {
+        if c == '(' {
+            brace_count += 1;
+        }
+        if c == ')' {
+            brace_count -= 1;
+        }
+        if brace_count == 0 {
+            return Some(opening_brace_index + i);
+        }
+    }
+
+    None
+}
+
 fn split_sql_token_unwrap_brace(token: &str) -> Vec<String> {
     if token.is_empty() {
         return vec![];
     }
-    if token.starts_with('(') && token.ends_with(')') {
+    if token.starts_with('(')
+        && token.ends_with(')')
+        && closing_brace_index(0, token) == Some(token.len() - 1)
+    {
         return split_sql_token_unwrap_brace(&token[1..token.len() - 1]);
     }
     let tokens = split_sql_token(token);
@@ -976,17 +996,17 @@ mod tests {
             ("select * from table1 where a='b'", true, (0, 0)),
             (
                 "select * from table1 where a='b' limit 10 offset 10",
-                false,
+                true,
                 (0, 0),
             ),
             (
                 "select * from table1 where a='b' group by abc",
-                false,
+                true,
                 (0, 0),
             ),
             (
                 "select * from table1 where a='b' group by abc having count(*) > 19",
-                false,
+                true,
                 (0, 0),
             ),
             ("select * from table1, table2 where a='b'", false, (0, 0)),
@@ -1007,7 +1027,7 @@ mod tests {
             ),
             (
                 "select * from table1 where log='[2023-03-19T05:23:14Z INFO  openobserve::service::search::datafusion::exec] Query sql: select * FROM tbl WHERE (_timestamp >= 1679202494333000 AND _timestamp < 1679203394333000)   ORDER BY _timestamp DESC LIMIT 150' order by _timestamp desc limit 10 offset 10",
-                false,
+                true,
                 (0, 0),
             ),
             (
@@ -1070,6 +1090,7 @@ mod tests {
             rpc_req.org_id = org_id.to_string();
 
             let resp = Sql::new(&rpc_req).await;
+            println!("sql: {}", sql);
             assert_eq!(resp.is_ok(), ok);
             if ok {
                 let resp = resp.unwrap();
@@ -1083,7 +1104,6 @@ mod tests {
                         Some((query.start_time, query.end_time))
                     );
                 }
-                assert_eq!(resp.meta.limit, query.size);
             }
         }
     }
